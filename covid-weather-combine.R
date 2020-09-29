@@ -96,6 +96,8 @@ colnames(covid) <- toupper(colnames(covid))
 covid$STATE <- stateNameToAbb(covid$STATE)
 covid <- covid[!is.na(covid$STATE), ]
 
+uniqueID(covid[,c("STATE", "COUNTY", "DATE")])
+
 # NYT adjustments
 covid$COUNTY[covid$COUNTY %in% c('Cass', 'Clay', 'Jackson', 'Platte') & covid$STATE == 'MO'] <- 'Kansas City'
 
@@ -104,12 +106,28 @@ covid <- covid %>%
   summarize(CASES = sum(CASES, na.rm = T),
             DEATHS = sum(DEATHS, na.rm = T))
 
+# find daily totals by subtracting  day (n-1) from  day n 
+# date shifted is the date for which the given row is the previous day
+covid$DATE_SHIFTED <- as.character(as.Date(covid$DATE) + 1)
+covid <- merge(covid, covid, 
+               by.x = c("DATE", "COUNTY", "STATE"), 
+               by.y = c("DATE_SHIFTED", "COUNTY", "STATE"), 
+               suffixes = c(".0", '.1'), 
+               all.x = T)
+covid$DEATHS <- covid$DEATHS.0 - ifelse(is.na(covid$DEATHS.1), 0, covid$DEATHS.1)
+covid$CASES <- covid$CASES.0 - ifelse(is.na(covid$CASES.1), 0, covid$CASES.1)
+
+idx <- covid$COUNTY == 'New York City' & covid$STATE == 'NY' & !is.na(covid$CASES)
+plot(as.Date(covid$DATE[idx]), covid$DEATHS[idx])
+plot(as.Date(covid$DATE[idx]), covid$CASES[idx])
+
+
 # merge all data together -- first, all date x (state/county) combos, 
 # left joined with covid data left joined with weather data
 out <- merge(data.frame(DATE = unique(weather.aggregated$DATE)),
              covid[!duplicated(covid[, c("COUNTY", "STATE")]), c("COUNTY", "STATE")],
              all = T) %>%
-  merge(covid, 
+  merge(covid[, c("DATE", "COUNTY", "STATE", "CASES", "DEATHS")], 
         by = c("DATE", "COUNTY", "STATE"), 
         all.x = T, 
         all.y = F) %>%
