@@ -8,7 +8,7 @@ Then, to produce the entire transformation pipeline, run `generate-station-subse
 
 
 # Data Schema
-File: `covid-weather-merged.csv` Weather and COVID case and death data by US county for all 50 states plus DC
+File: `covid-weather-merged.csv` Weather and COVID case and death data by US county for all 50 states plus DC.
 - DATE: Date of observation in YYYY-MM-DD form
 - COUNTY: County name (string)
 - STATE: State code (includes DC and the 50 states)
@@ -23,3 +23,5 @@ File: `covid-weather-merged.csv` Weather and COVID case and death data by US cou
 - PRCP: Inches of precipitation
 - NPRCP: Number of weather stations that measured precipiation
 - NUM: Total number of weather stations that reported any measurements 
+
+NOTE: To comply with COVID-19 case and death data from NYT, certain geographic aggregations are made. All five counties encompassing New York City are combined, as are all four counties overlapping Kansas City, MO.
