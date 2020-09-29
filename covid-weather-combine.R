@@ -1,5 +1,5 @@
 setwd("~/Covid")
-library(myUtils)
+library(myUtils) # install from github with devtools::install_github("mattgarber4/myUtils")
 library(data.table)
 library(dplyr)
 library(tidyr)
@@ -8,7 +8,8 @@ library(weathermetrics)
 
 ### STATIONS
 stations <- fread("stations/stations-subset-with-counties.csv")
-stations$county <- gsub(" County$", "", stations$county)
+colnames(stations) <- toupper(colnames(stations))
+stations$COUNTY <- gsub(" County$", "", stations$COUNTY)
 
 stateNameToAbb <- function(s) {
   names.vec <- c(state.name, "District of Columbia")
@@ -16,9 +17,13 @@ stateNameToAbb <- function(s) {
   abb.vec[match(s, names.vec)]
 }
 
-sum(stations$STATE != stateNameToAbb(stations$state2))
+sum(stations$STATE != stateNameToAbb(stations$STATE2))
 
-stations <- stations[stations$STATE == stateNameToAbb(stations$state2), ]
+stations <- stations[stations$STATE == stateNameToAbb(stations$STATE2), ]
+
+# NYT county exceptions applied here:
+stations$COUNTY[stations$COUNTY %in% c('New York', 'Kings', 'Queens', 'Bronx', 'Richmond') & stations$STATE == 'NY'] <- "New York City"
+stations$COUNTY[stations$COUNTY %in% c('Cass', 'Clay', 'Jackson', 'Platte') & stations$STATE == 'MO'] <- 'Kansas City'
 
 ### WEATHER
 weather <- fread("raw/2020-weather.csv", 
@@ -38,7 +43,7 @@ weather <- weather[weather$TYPE %in% c("PRCP", "TAVG", "TMIN", "TMAX"), ] %>%
          DATE = as.Date(as.character(DATE), format = "%Y%m%d")
          )
 
-# remove clear outliers
+# remove clear measurement outliers
 inRange <- function(vec, min, max) {
   (min <= vec & vec <= max) | is.na(vec)
 }
@@ -59,10 +64,8 @@ weather$ID <- toupper(trimws(weather$ID))
 stations$ID <- toupper(trimws(stations$ID))
 
 weather.merged <- merge(weather, 
-                        stations[,c("ID", "county", "STATE")], 
+                        stations[,c("ID", "COUNTY", "STATE")], 
                         by = "ID", all = F)
-
-colnames(weather.merged) <- toupper(colnames(weather.merged))
 
 
 # aggregate by county
@@ -81,8 +84,8 @@ weather.aggregated <- weather.merged %>%
   )
 
 # sanity checks
-idx <- weather.aggregated$COUNTY == 'King' & weather.aggregated$STATE == 'WA'
-plot(weather.aggregated$DATE[idx], weather.aggregated$PRCP[idx])
+idx <- weather.aggregated$COUNTY == 'New York City' & weather.aggregated$STATE == 'NY'
+plot(weather.aggregated$DATE[idx], weather.aggregated$TMAX[idx])
 
 summary(weather.aggregated)
 
@@ -93,7 +96,16 @@ colnames(covid) <- toupper(colnames(covid))
 covid$STATE <- stateNameToAbb(covid$STATE)
 covid <- covid[!is.na(covid$STATE), ]
 
+# NYT adjustments
+covid$COUNTY[covid$COUNTY %in% c('Cass', 'Clay', 'Jackson', 'Platte') & covid$STATE == 'MO'] <- 'Kansas City'
 
+covid <- covid %>%
+  group_by(DATE, STATE, COUNTY) %>%
+  summarize(CASES = sum(CASES, na.rm = T),
+            DEATHS = sum(DEATHS, na.rm = T))
+
+# merge all data together -- first, all date x (state/county) combos, 
+# left joined with covid data left joined with weather data
 out <- merge(data.frame(DATE = unique(weather.aggregated$DATE)),
              covid[!duplicated(covid[, c("COUNTY", "STATE")]), c("COUNTY", "STATE")],
              all = T) %>%
@@ -109,8 +121,9 @@ out <- merge(data.frame(DATE = unique(weather.aggregated$DATE)),
 out$CASES[is.na(out$CASES)] <- 0
 out$DEATHS[is.na(out$DEATHS)] <- 0
 
-uniqueID(out[, c("DATE", "COUNTY", "STATE")])
 
+# sanity checks
+uniqueID(out[, c("DATE", "COUNTY", "STATE")])
 summary(out)
 
 write.csv(out, file = "covid-weather-merged.csv", row.names = F)
