@@ -124,9 +124,16 @@ plot(as.Date(covid$DATE[idx]), covid$CASES[idx])
 
 # merge all data together -- first, all date x (state/county) combos, 
 # left joined with covid data left joined with weather data
-out <- merge(data.frame(DATE = unique(weather.aggregated$DATE)),
-             covid[!duplicated(covid[, c("COUNTY", "STATE")]), c("COUNTY", "STATE")],
-             all = T) %>%
+out <- merge(data.frame(
+  DATE = 
+    seq(
+      min(as.Date(weather.aggregated$DATE)), max(as.Date(covid$DATE)), 
+      1
+      )
+  ),
+  covid[!duplicated(covid[, c("COUNTY", "STATE")]), c("COUNTY", "STATE")],
+  all = T
+  ) %>%
   merge(covid[, c("DATE", "COUNTY", "STATE", "CASES", "DEATHS")], 
         by = c("DATE", "COUNTY", "STATE"), 
         all.x = T, 
